@@ -1,0 +1,210 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------
+// Security & Authentication
+// ----------------------------------------------------
+
+model Role {
+  role_id          Int              @id @default(autoincrement())
+  role_name        String           @unique
+  description      String?
+  users            User[]
+  role_permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  permission_id    Int              @id @default(autoincrement())
+  permission_name  String           @unique
+  description      String?
+  role_permissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  role_id       Int
+  permission_id Int
+  role          Role       @relation(fields: [role_id], references: [role_id], onDelete: Cascade)
+  permission    Permission @relation(fields: [permission_id], references: [permission_id], onDelete: Cascade)
+
+  @@id([role_id, permission_id])
+  @@map("role_permissions")
+}
+
+model User {
+  user_id              Int            @id @default(autoincrement())
+  username             String         @unique
+  email                String         @unique
+  password_hash        String
+  role_id              Int
+  role                 Role           @relation(fields: [role_id], references: [role_id])
+  is_active            Boolean        @default(true)
+  must_change_password Boolean        @default(false)
+  last_login_at        DateTime?
+  created_at           DateTime       @default(now())
+  sessions             UserSession[]
+  student              Student?
+  teacher              Teacher?
+  admin_profile        AdminProfile?
+
+  @@map("users")
+}
+
+model UserSession {
+  session_id String   @id
+  user_id    Int
+  user       User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  ip_address String?
+  user_agent String?
+  expires_at DateTime
+  is_revoked Boolean  @default(false)
+
+  @@map("user_sessions")
+}
+
+// ----------------------------------------------------
+// Location & Campus
+// ----------------------------------------------------
+
+model Address {
+  address_id     Int       @id @default(autoincrement())
+  street_address String
+  city           String
+  province_state String
+  postal_code    String
+  campuses       Campus[]
+  students       Student[]
+
+  @@map("addresses")
+}
+
+model Campus {
+  campus_id   Int       @id @default(autoincrement())
+  campus_name String
+  address_id  Int
+  address     Address   @relation(fields: [address_id], references: [address_id])
+  students    Student[]
+  teachers    Teacher[]
+
+  @@map("campuses")
+}
+
+// ----------------------------------------------------
+// User Profiles
+// ----------------------------------------------------
+
+model Student {
+  student_id     String              @id
+  user_id        Int                 @unique
+  user           User                @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  first_name     String
+  last_name      String
+  contact_number String?
+  sex            String
+  year_level     String
+  campus_id      Int
+  campus         Campus              @relation(fields: [campus_id], references: [campus_id])
+  address_id     Int
+  address        Address             @relation(fields: [address_id], references: [address_id])
+  enrollments    StudentEnrollment[]
+
+  @@map("students")
+}
+
+model Teacher {
+  teacher_id     String         @id
+  user_id        Int            @unique
+  user           User           @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  first_name     String
+  last_name      String
+  contact_number String?
+  sex            String
+  campus_id      Int
+  campus         Campus         @relation(fields: [campus_id], references: [campus_id])
+  sections       ClassSection[]
+
+  @@map("teachers")
+}
+
+model AdminProfile {
+  admin_id   Int    @id @default(autoincrement())
+  user_id    Int    @unique
+  user       User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  first_name String
+  last_name  String
+  department String
+
+  @@map("admin_profiles")
+}
+
+// ----------------------------------------------------
+// Academics & Classes
+// ----------------------------------------------------
+
+model Course {
+  course_id   String         @id
+  course_name String
+  units       Int
+  sections    ClassSection[]
+
+  @@map("courses")
+}
+
+model AcademicTerm {
+  term_id       Int            @id @default(autoincrement())
+  academic_year String
+  term_name     String
+  sections      ClassSection[]
+
+  @@map("academic_terms")
+}
+
+model ClassSection {
+  section_id   Int                 @id @default(autoincrement())
+  section_name String
+  course_id    String
+  course       Course              @relation(fields: [course_id], references: [course_id])
+  teacher_id   String
+  teacher      Teacher             @relation(fields: [teacher_id], references: [teacher_id])
+  term_id      Int
+  term         AcademicTerm        @relation(fields: [term_id], references: [term_id])
+  enrollments  StudentEnrollment[]
+
+  @@map("class_sections")
+}
+
+// ----------------------------------------------------
+// Enrollments & Grades
+// ----------------------------------------------------
+
+model StudentEnrollment {
+  enrollment_id Int                  @id @default(autoincrement())
+  student_id    String
+  student       Student              @relation(fields: [student_id], references: [student_id], onDelete: Cascade)
+  section_id    Int
+  section       ClassSection         @relation(fields: [section_id], references: [section_id], onDelete: Cascade)
+  performance   AcademicPerformance?
+
+  @@map("student_enrollments")
+}
+
+model AcademicPerformance {
+  performance_id Int               @id @default(autoincrement())
+  enrollment_id  Int               @unique
+  enrollment     StudentEnrollment @relation(fields: [enrollment_id], references: [enrollment_id], onDelete: Cascade)
+  midterm_grade  Decimal?          @db.Decimal(5, 2)
+  final_grade    Decimal?          @db.Decimal(5, 2)
+  remarks        String?
+
+  @@map("academic_performance")
+}
+
